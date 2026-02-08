@@ -48,7 +48,41 @@ class BTSolver:
                 The bool is true if assignment is consistent, false otherwise.
     """
     def forwardChecking ( self ):
-        return ({},False)
+        """a tuple of a dictionary and a bool. The dictionary contains all MODIFIED variables, mapped to their MODIFIED domain.
+            The bool is true if assignment is consistent, false otherwise."""
+        modifiedVars = {}
+        assignedVars = []
+
+        # get assigned variables
+        for c in self.network.constraints:
+            for v in c.vars:
+                if v.isAssigned() and v not in assignedVars:
+                    assignedVars.append(v)
+
+        # propagate constraints
+        while len(assignedVars) != 0:
+            av = assignedVars.pop(0)
+
+            for neighbor in self.network.getNeighborsOfVariable(av):
+                if neighbor.isChangeable and not neighbor.isAssigned() and neighbor.getDomain().contains(av.getAssignment()):
+                    # remove inconsistent values
+                    neighbor.removeValueFromDomain(av.getAssignment())
+                    modifiedVars[neighbor] = neighbor.getDomain()
+
+                    # empty domain -> check failed
+                    if neighbor.domain.size() == 0:
+                        return (modifiedVars, False)
+
+                    # trail variable before assignment
+                    if neighbor.domain.size() == 1:
+                        self.trail.push(neighbor)
+                        neighbor.assignValue(neighbor.domain.values[0])
+                        assignedVars.append(neighbor)
+
+        # check final assignement consistency
+        if self.assignmentsCheck():
+            return (modifiedVars, True)
+        return (modifiedVars, False)
 
     # =================================================================
 	# Arc Consistency
@@ -59,11 +93,13 @@ class BTSolver:
             for v in c.vars:
                 if v.isAssigned():
                     assignedVars.append(v)
+                    
         while len(assignedVars) != 0:
             av = assignedVars.pop(0)
             for neighbor in self.network.getNeighborsOfVariable(av):
                 if neighbor.isChangeable and not neighbor.isAssigned() and neighbor.getDomain().contains(av.getAssignment()):
                     neighbor.removeValueFromDomain(av.getAssignment())
+                    
                     if neighbor.domain.size() == 1:
                         neighbor.assignValue(neighbor.domain.values[0])
                         assignedVars.append(neighbor)
@@ -87,6 +123,8 @@ class BTSolver:
                 The bool is true if assignment is consistent, false otherwise.
     """
     def norvigCheck ( self ):
+
+        
         return ({}, False)
 
     """
