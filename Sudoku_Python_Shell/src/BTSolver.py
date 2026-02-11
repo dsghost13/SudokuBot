@@ -48,41 +48,36 @@ class BTSolver:
                 The bool is true if assignment is consistent, false otherwise.
     """
     def forwardChecking ( self ):
-        """a tuple of a dictionary and a bool. The dictionary contains all MODIFIED variables, mapped to their MODIFIED domain.
-            The bool is true if assignment is consistent, false otherwise."""
         modifiedVars = {}
         assignedVars = []
 
         # get assigned variables
-        for c in self.network.constraints:
-            for v in c.vars:
-                if v.isAssigned() and v not in assignedVars:
-                    assignedVars.append(v)
+        for v in self.network.variables:
+            if v.isAssigned() and v not in assignedVars:
+                assignedVars.append(v)
 
         # propagate constraints
-        while len(assignedVars) != 0:
+        while assignedVars:
             av = assignedVars.pop(0)
 
+            # update neighbor domains of assigned variables
             for neighbor in self.network.getNeighborsOfVariable(av):
-                if neighbor.isChangeable and not neighbor.isAssigned() and neighbor.getDomain().contains(av.getAssignment()):
+                if neighbor.isChangeable() and not neighbor.isAssigned() and neighbor.getDomain().contains(av.getAssignment()):
                     # remove inconsistent values
+                    self.trail.push(neighbor)
                     neighbor.removeValueFromDomain(av.getAssignment())
                     modifiedVars[neighbor] = neighbor.getDomain()
 
-                    # empty domain -> check failed
-                    if neighbor.domain.size() == 0:
+                    # empty domain -> failed check
+                    if neighbor.getDomain().size() == 0:
                         return (modifiedVars, False)
 
                     # trail variable before assignment
-                    if neighbor.domain.size() == 1:
-                        self.trail.push(neighbor)
-                        neighbor.assignValue(neighbor.domain.values[0])
-                        assignedVars.append(neighbor)
+                    self.trail.push(neighbor)
+                    neighbor.assignValue(neighbor.getDomain().values[0])
+                    assignedVars.append(neighbor)
 
-        # check final assignement consistency
-        if self.assignmentsCheck():
-            return (modifiedVars, True)
-        return (modifiedVars, False)
+        return (modifiedVars, self.network.isConsistent())
 
     # =================================================================
 	# Arc Consistency
