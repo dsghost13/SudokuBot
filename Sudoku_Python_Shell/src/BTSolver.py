@@ -55,7 +55,7 @@ class BTSolver:
         for v in self.network.variables:
             if v.isAssigned() and v not in assignedVars:
                 assignedVars.append(v)
-
+                
         # propagate constraints
         while assignedVars:
             av = assignedVars.pop(0)
@@ -73,11 +73,15 @@ class BTSolver:
                         return (modifiedVars, False)
 
                     # trail variable before assignment
-                    self.trail.push(neighbor)
-                    neighbor.assignValue(neighbor.getDomain().values[0])
-                    assignedVars.append(neighbor)
+                    if neighbor.getDomain().size() == 1:
+                        self.trail.push(neighbor)
+                        neighbor.assignValue(neighbor.getDomain().values[0])
+                        assignedVars.append(neighbor)
 
-        return (modifiedVars, self.network.isConsistent())
+                        if not self.network.isConsistent():
+                            return (modifiedVars, False)
+
+        return (modifiedVars, True)
 
     # =================================================================
 	# Arc Consistency
