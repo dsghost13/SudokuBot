@@ -49,39 +49,19 @@ class BTSolver:
     """
     def forwardChecking ( self ):
         modifiedVars = {}
-        assignedVars = []
+        assignedVars = [v for v in self.network.variables if v.isAssigned()]
 
-        # get assigned variables
-        for v in self.network.variables:
-            if v.isAssigned() and v not in assignedVars:
-                assignedVars.append(v)
-                
-        # propagate constraints
-        while assignedVars:
-            av = assignedVars.pop(0)
-
-            # update neighbor domains of assigned variables
+        for av in assignedVars:
             for neighbor in self.network.getNeighborsOfVariable(av):
-                if neighbor.isChangeable() and not neighbor.isAssigned() and neighbor.getDomain().contains(av.getAssignment()):
-                    # remove inconsistent values
+                if not neighbor.isAssigned() and neighbor.getDomain().contains(av.getAssignment()):
                     self.trail.push(neighbor)
                     neighbor.removeValueFromDomain(av.getAssignment())
                     modifiedVars[neighbor] = neighbor.getDomain()
 
-                    # empty domain -> failed check
                     if neighbor.getDomain().size() == 0:
                         return (modifiedVars, False)
 
-                    # trail variable before assignment
-                    if neighbor.getDomain().size() == 1:
-                        self.trail.push(neighbor)
-                        neighbor.assignValue(neighbor.getDomain().values[0])
-                        assignedVars.append(neighbor)
-
-                        if not self.network.isConsistent():
-                            return (modifiedVars, False)
-
-        return (modifiedVars, True)
+        return (modifiedVars, self.network.isConsistent())
 
     # =================================================================
 	# Arc Consistency
