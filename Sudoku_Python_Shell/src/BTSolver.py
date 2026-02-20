@@ -28,7 +28,7 @@ class BTSolver:
     # ==================================================================
 
     # Basic consistency check, no propagation done
-    def assignmentsCheck ( self ):
+    def assignmentsCheck(self):
         for c in self.network.getConstraints():
             if not c.isConsistent():
                 return False
@@ -47,17 +47,19 @@ class BTSolver:
         Return: a tuple of a dictionary and a bool. The dictionary contains all MODIFIED variables, mapped to their MODIFIED domain.
                 The bool is true if assignment is consistent, false otherwise.
     """
-    def forwardChecking ( self ):
+    def forwardChecking(self):
         modifiedVars = {}
         assignedVars = [v for v in self.network.variables if v.isAssigned()]
 
         for av in assignedVars:
             for neighbor in self.network.getNeighborsOfVariable(av):
                 if not neighbor.isAssigned() and neighbor.getDomain().contains(av.getAssignment()):
+                    # remove assigned values from neighbor domains
                     self.trail.push(neighbor)
                     neighbor.removeValueFromDomain(av.getAssignment())
                     modifiedVars[neighbor] = neighbor.getDomain()
 
+                    # no possible values -> dead end
                     if neighbor.getDomain().size() == 0:
                         return (modifiedVars, False)
 
@@ -66,7 +68,7 @@ class BTSolver:
     # =================================================================
 	# Arc Consistency
 	# =================================================================
-    def arcConsistency( self ):
+    def arcConsistency(self):
         assignedVars = []
         for c in self.network.constraints:
             for v in c.vars:
@@ -83,7 +85,6 @@ class BTSolver:
                         neighbor.assignValue(neighbor.domain.values[0])
                         assignedVars.append(neighbor)
 
-    
     """
         Part 2 TODO: Implement both of Norvig's Heuristics
 
@@ -101,10 +102,29 @@ class BTSolver:
 		        that were ASSIGNED during the whole NorvigCheck propagation, and mapped to the values that they were assigned.
                 The bool is true if assignment is consistent, false otherwise.
     """
-    def norvigCheck ( self ):
+    def norvigCheck(self):
+        newAssignments = {}
+        assignedVars = [v for v in self.network.variables if v.isAssigned()]
 
-        
-        return ({}, False)
+        for av in assignedVars:
+            for neighbor in self.network.getNeighborsOfVariable(av):
+                if not neighbor.isAssigned() and neighbor.getDomain().contains(av.getAssignment()):
+                    # remove assigned values from neighbor domains
+                    self.trail.push(neighbor)
+                    neighbor.removeValueFromDomain(av.getAssignment())
+
+                    # no possible values -> dead end
+                    if neighbor.getDomain().size() == 0:
+                        return (newAssignments, False)
+
+                    # one possible value -> force assign
+                    if neighbor.getDomain().size() == 1:
+                        self.trail.push(neighbor)
+                        neighbor.assignValue(neighbor.getDomain().values[0])
+                        assignedVars.append(neighbor)
+                        newAssignments[neighbor] = neighbor.getAssignment()
+
+        return (newAssignments, self.network.isConsistent())
 
     """
          Optional TODO: Implement your own advanced Constraint Propagation
@@ -112,15 +132,15 @@ class BTSolver:
          Completing the three tourn heuristic will automatically enter
          your program into a tournament.
      """
-    def getTournCC ( self ):
-        return False
+    def getTournCC(self):
+        return self.norvigCheck()
 
     # ==================================================================
     # Variable Selectors
     # ==================================================================
 
     # Basic variable selector, returns first unassigned variable
-    def getfirstUnassignedVariable ( self ):
+    def getfirstUnassignedVariable(self):
         for v in self.network.variables:
             if not v.isAssigned():
                 return v
@@ -133,19 +153,49 @@ class BTSolver:
 
         Return: The unassigned variable with the smallest domain
     """
-    def getMRV ( self ):
-        return None
+    def getMRV(self):
+        minVar = None
+        minSize = float('inf')
+
+        for v in self.network.variables:
+            if not v.isAssigned():
+                size = v.getDomain().size()
+                if size < minSize:
+                    minSize = size
+                    minVar = v
+        return minVar
 
     """
         Part 2 TODO: Implement the Minimum Remaining Value Heuristic
-                       with Degree Heuristic as a Tie Breaker
+                       with unassignedNeighbors Heuristic as a Tie Breaker
 
         Return: The unassigned variable with the smallest domain and affecting the  most unassigned neighbors.
                 If there are multiple variables that have the same smallest domain with the same number of unassigned neighbors, add them to the list of Variables.
                 If there is only one variable, return the list of size 1 containing that variable.
     """
-    def MRVwithTieBreaker ( self ):
-        return None
+    def MRVwithTieBreaker(self):
+        minVars = []
+        minSize = float('inf')
+        maxDegree = -1
+
+        for v in self.network.variables:
+            if v.isAssigned():
+                continue
+
+            domainSize = v.getDomain().size()
+            unassignedNeighbors = sum(1 for n in self.network.getNeighborsOfVariable(v) if not n.isAssigned())
+
+            if domainSize < minSize:                    # smallest domain check
+                minSize = domainSize
+                maxDegree = unassignedNeighbors
+                minVars = [v]
+            elif domainSize == minSize:                 # tiebreaker case
+                if unassignedNeighbors > maxDegree:     # most unassigned neighbors check
+                    maxDegree = unassignedNeighbors
+                    minVars = [v]
+                elif unassignedNeighbors == maxDegree:  # both conditions tied
+                    minVars.append(v)
+        return minVars if minVars else [None]
 
     """
          Optional TODO: Implement your own advanced Variable Heuristic
@@ -153,15 +203,15 @@ class BTSolver:
          Completing the three tourn heuristic will automatically enter
          your program into a tournament.
      """
-    def getTournVar ( self ):
-        return None
+    def getTournVar(self):
+        return self.MRVwithTieBreaker()
 
     # ==================================================================
     # Value Selectors
     # ==================================================================
 
     # Default Value Ordering
-    def getValuesInOrder ( self, v ):
+    def getValuesInOrder(self, v):
         values = v.domain.values
         return sorted( values )
 
@@ -174,8 +224,21 @@ class BTSolver:
         Return: A list of v's domain sorted by the LCV heuristic
                 The LCV is first and the MCV is last
     """
-    def getValuesLCVOrder ( self, v ):
-        return None
+    def getValuesLCVOrder(self, v):
+        values = []
+        for val in v.getDomain().values:
+            knocked = 0
+            for neighbor in self.network.getNeighborsOfVariable(v):
+                if neighbor.isAssigned():
+                    continue  
+                # increment every time value affects neigbor domain
+                if neighbor.getDomain().contains(val):
+                    knocked += 1
+            # data structure needed for sorting        
+            values.append((val, knocked))
+        # sort values from LCV to MCV
+        values.sort(key=lambda x: x[1])
+        return [val for val, _ in values]
 
     """
          Optional TODO: Implement your own advanced Value Heuristic
@@ -183,14 +246,14 @@ class BTSolver:
          Completing the three tourn heuristic will automatically enter
          your program into a tournament.
      """
-    def getTournVal ( self, v ):
-        return None
+    def getTournVal(self, v):
+        return self.getValuesLCVOrder(v)
 
     # ==================================================================
     # Engine Functions
     # ==================================================================
 
-    def solve ( self, time_left=600):
+    def solve(self, time_left=600):
         if time_left <= 60:
             return -1
 
@@ -216,6 +279,7 @@ class BTSolver:
 
             # Assign the value
             v.assignValue( i )
+            # print(self.getSolution())
 
             # Propagate constraints, check consistency, recur
             if self.checkConsistency():
@@ -233,7 +297,7 @@ class BTSolver:
         
         return 0
 
-    def checkConsistency ( self ):
+    def checkConsistency(self):
         if self.cChecks == "forwardChecking":
             return self.forwardChecking()[1]
 
@@ -246,7 +310,7 @@ class BTSolver:
         else:
             return self.assignmentsCheck()
 
-    def selectNextVariable ( self ):
+    def selectNextVariable(self):
         if self.varHeuristics == "MinimumRemainingValue":
             return self.getMRV()
 
@@ -259,7 +323,7 @@ class BTSolver:
         else:
             return self.getfirstUnassignedVariable()
 
-    def getNextValues ( self, v ):
+    def getNextValues(self, v):
         if self.valHeuristics == "LeastConstrainingValue":
             return self.getValuesLCVOrder( v )
 
@@ -269,5 +333,5 @@ class BTSolver:
         else:
             return self.getValuesInOrder( v )
 
-    def getSolution ( self ):
+    def getSolution(self):
         return self.network.toSudokuBoard(self.gameboard.p, self.gameboard.q)
