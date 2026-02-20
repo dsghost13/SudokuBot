@@ -1,5 +1,5 @@
 # SudokuBot
-CS 171 Winter Quarter 2026 
+CS171 Winter Quarter 2026 <br>
 Details in student manual PDF.
 
 ## AI Algorithms
@@ -21,7 +21,7 @@ cd ~/SudokuBot/Sudoku_Generator
 ```
 make
 ```
-3. Enter parameters (example entries below). 
+3. Enter parameters (example entries down below). 
 ```
 Enter p: 3
 Enter q: 3
